@@ -1,0 +1,77 @@
+______________________________________________________
+dockerfile
+# Use an official Python runtime as a parent image
+FROM python:3.8-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install any needed dependencies specified in requirements.txt
+RUN pip install --no-cache-dir Flask redis
+
+# Expose the port Flask will run on
+EXPOSE 5000
+
+# Define environment variables
+ENV FLASK_APP=app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+
+# Run app.py when the container launches
+CMD ["flask", "run"]
+______________________________________________________
+app.py
+from flask import Flask
+import redis
+
+app = Flask(__name__)
+redis_client = redis.Redis(host='redis', port=6379)
+
+@app.route('/')
+def hello():
+    redis_client.incr('hits')
+    return 'Hello World! You have visited {} times.\n'.format(redis_client.get('hits').decode('utf-8'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
+______________________________________________________
+compose.yaml
+version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+  manager:
+    build: .
+    command: flask run --host=0.0.0.0
+    depends_on:
+      - redis
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0
+  worker1:
+    build: .
+    command: flask run --host=0.0.0.0
+    depends_on:
+      - redis
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0
+  worker2:
+    build: .
+    command: flask run --host=0.0.0.0
+    depends_on:
+      - redis
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0
+______________________________________________________
